@@ -1,0 +1,38 @@
+
+# exploration of the animl-py library. How does it work, and how well does it perform?
+# I forked the repo so that i can alter the code. 
+
+# step 1: get code locally
+cd C:\Peter\training-utils\scripts
+git clone https://github.com/PetervanLunteren/animl-py.git
+
+# step 2: add missing packages (check if needed)
+# (March 2025: the addaxai pytorch environment is broken for GPU, so I'm using the old v5.4 version: https://github.com/PetervanLunteren/AddaxAI/blob/v.5.4/install.bat#L474C1-L487C42)
+conda activate ecoassistcondaenv-pytorch
+pip install PyExifTool
+pip install scikit-learn
+pip install panoptes-client
+pip install python-magic-bin
+pip install onnxruntime
+pip install torch-lr-finder
+
+# step 3: produce dataset CSVs with upsample-based-on-all-dirs.py or split-based-on-locations.py
+
+# step 4: create config.yaml file 
+"/Users/peter/Documents/scripting/sorted-scripts/train-classifier/3-train/animl-training/example-files/config.yaml" copy to "C:\Peter\training-utils\scripts\config.yaml"
+
+# step 5: train
+# (I added subprocess calls to the execute test steps below automatically after training, not sure if that works)
+conda activate ecoassistcondaenv-pytorch && cd C:\Peter\training-utils\scripts\animl-py\src && set PYTHONWARNINGS=ignore::RuntimeWarning && python -m animl.train --config="C:\Peter\training-utils\scripts\config.yaml"
+
+# step 6: test
+# point towards the script with the used-config.yml file inside the experiment folder
+conda activate ecoassistcondaenv-pytorch && cd C:\Peter\training-utils\scripts\animl-py\src && set PYTHONWARNINGS=ignore::RuntimeWarning && python -m animl.test --config="C:\Peter\projects\2024-28-OHI\outputs\human-sorted\with_test\full\run_1\used-config.yml"
+
+# compute test metrics
+# point towards the script with the used-config.yml file inside the experiment folder
+conda activate ecoassistcondaenv-pytorch && python "C:\Peter\training-utils\scripts\val-test-set.py" "animl" "C:\Peter\projects\2024-28-OHI\outputs\human-sorted\with_test\full\run_1\used-config.yml"
+
+>≥
+
+

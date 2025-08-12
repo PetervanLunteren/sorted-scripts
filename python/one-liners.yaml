@@ -1,0 +1,27 @@
+# check extension counts of dir recursively (from working directory)
+python -c "import os; dir_path = '.'; file_counts = {ext: sum(1 for _, _, files in os.walk(dir_path) for file in files if os.path.splitext(file)[1] == ext) for ext in set(map(lambda file: os.path.splitext(file)[1], [file for _, _, files in os.walk(dir_path) for file in files]))}; print(dict(sorted(file_counts.items())))"
+
+# count number of JPG's recursively (from working directory)
+python -c "import os; from tqdm import tqdm; dir_path = '.'; jpg_count = sum([len(files) for _, _, files in tqdm(os.walk(dir_path)) if any(file.lower().endswith('.jpg') for file in files)]); print(jpg_count)"
+
+# count .azDownload temp files recursively (from working directory)
+python -c "import os; from tqdm import tqdm; dir_path = '.'; azDownload_count = sum([len(files) for _, _, files in tqdm(os.walk(dir_path)) if any(file.lower().startswith('.azdownload') for file in files)]); print(azDownload_count)"
+
+# The following commands are handy to fill your spp-list class xlsx with names, counts and paths.
+# They all print a list that can be easily copy-pasted to excel, and are all in the same order
+
+	# print subdirectories names non recursively (from working directory)
+python -c "import os; print('\n'.join([d for d in os.listdir('.') if os.path.isdir(d)]))"
+
+	# print image counts recursively in same order as subdirs above (from working directory)
+python -c "import os; exts = ('.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.gif'); [print(f'{sum(1 for _, _, files in os.walk(root) for file in files if file.lower().endswith(exts))}') for root, _, _ in os.walk('.') if os.path.abspath(root).count(os.sep) - os.path.abspath('.').count(os.sep) == 1]"
+
+	# print path of subdirectories non recursively (from working directory)
+python -c "import os; print('\n'.join([os.path.abspath(d) for d in os.listdir('.')]))"
+
+	# all the above commands in one!
+echo. && echo ------ && echo Names: && echo. && python -c "import os; print('\n'.join([d for d in os.listdir('.') if os.path.isdir(d)]))" && echo. && echo ------ && echo Image counts: && echo. && python -c "import os; exts = ('.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.gif'); [print(f'{sum(1 for _, _, files in os.walk(root) for file in files if file.lower().endswith(exts))}') for root, _, _ in os.walk('.') if os.path.abspath(root).count(os.sep) - os.path.abspath('.').count(os.sep) == 1]" && echo. && echo ------ && echo Paths: && echo. && python -c "import os; print('\n'.join([os.path.abspath(d) for d in os.listdir('.')]))" && echo.
+
+
+
+

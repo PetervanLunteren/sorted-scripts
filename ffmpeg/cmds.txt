@@ -1,0 +1,28 @@
+#################
+## extract frames, adjust using EcoAssist and reassemble again with bboxes
+#################
+
+# <place movie in downloads and rename to movie.mp4>
+
+# extract
+cd /Users/peter/Downloads
+mkdir frames
+mkdir frames_vis
+
+# original frame rate
+frame_rate=$(ffmpeg -i movie.mp4 2>&1 | sed -n "s/.*, \(.*\) fp.*/\1/p")
+echo $frame_rate
+
+# optionally lower the frame rate to reduce long processing times
+# frame_rate=10
+
+# split into frames
+ffmpeg -i movie.mp4 -vf "fps=$frame_rate" -q:v 2 frames/frame_%05d.jpg
+
+# copy to frames_vis already (visualised will be replaced by AddaxAI)
+cp frames/* frames_vis/
+
+# <AddaxAI: analyse /frames/ and add bbox to /frames_vis/ dir to replace existing imgs>
+
+# reassemble frames into video
+ffmpeg -framerate $frame_rate -i frames_vis/frame_%05d.jpg -c:v libx264 -pix_fmt yuvj420p reconstructed_video.mp4

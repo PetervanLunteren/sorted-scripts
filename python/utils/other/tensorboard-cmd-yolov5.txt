@@ -1,0 +1,1 @@
+conda activate ecoassistcondaenv && tensorboard --logdir="C:\Peter\desert-lion-project\LILA-BC-based-lion-model\training-output\baseline\exp"

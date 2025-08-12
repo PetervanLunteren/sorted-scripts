@@ -1,0 +1,392 @@
+# Commands and steps to train a species classifier
+
+
+############### TRAIN MODEL ###############
+
+# I've ran some tests:
+# model size? X is the best -> /Users/peter/Documents/Addax/Projects/2023-01-DLC/model-tests/1-compare-model-size.yml
+# learning rate? default values are the best -> /Users/peter/Documents/Addax/Projects/2023-01-DLC/model-tests/2-compare-learning-rate.yml
+# group classes? -> /Users/peter/Documents/Addax/Projects/2023-01-DLC/model-tests/3-compare-n-classes.yml
+
+
+# TODO: experiment with augment=True, 
+
+
+
+# project specific input
+set OUTPUT_DIR=C:\Peter\projects\2024-28-OHI\outputs\human-sorted\with_test\full
+set INPUT_DIR=C:\Peter\projects\2024-28-OHI\dataset\fmt-human-sorted\with_test\full
+
+
+# set OOSD_DIR=C:\Peter\training-utils\verified-datasets\nz-trailcams-crops\oosd-excl\sec-try\oosd
+
+# constant values
+set ADDAXAI_FILES=C:\Users\smart\AddaxAI_files
+set VAL_TEST_SCRIPT_PATH=C:\Peter\training-utils\scripts\val-test-set.py
+set PYTHONPATH=%PYTHONPATH%;%ADDAXAI_FILES%\cameratraps;%ADDAXAI_FILES%\yolov5
+set VALIDATE_TEST=python %VAL_TEST_SCRIPT_PATH% "yolov8" %INPUT_DIR% %OUTPUT_DIR%
+cd "%OUTPUT_DIR%"
+conda activate ecoassistcondaenv-pytorch
+pip install scikit-learn
+
+# train baseline
+yolo classify train data="%INPUT_DIR%" model=yolov8n-cls.pt epochs=5 patience=1 && %VALIDATE_TEST%  # nano
+yolo classify train data="%INPUT_DIR%" model=yolov8s-cls.pt epochs=5 patience=1 && %VALIDATE_TEST%  # small
+yolo classify train data="%INPUT_DIR%" model=yolov8m-cls.pt epochs=10 patience=3 && %VALIDATE_TEST%  # medium
+
+# convert to onnx
+cd <train-outout-dir>
+conda activate ecoassistcondaenv-pytorch && python -c "from ultralytics import YOLO; model = YOLO('best.pt'); model.export(format='onnx')"
+
+# convert to tflite
+cd <train-outout-dir>
+yolo export model=weights\best.pt format=tflite
+
+# train with adjusted settings and with more epochs
+yolo classify train data="%INPUT_DIR%" model=yolov8m-cls.pt epochs=50 patience=5 lr0=0.001 optimizer='SGD' fliplr=0.5 label_smoothing=0.1 && %VALIDATE_TEST%  # with out of sample dataset
+yolo classify train data="%INPUT_DIR%" model=yolov8n-cls.pt epochs=50 patience=5 lr0=0.001 optimizer='SGD' fliplr=0.5 label_smoothing=0.1 && %VALIDATE_TEST%  # nano
+yolo classify train data="%INPUT_DIR%" model=yolov8s-cls.pt epochs=50 patience=5 lr0=0.001 optimizer='SGD' fliplr=0.5 label_smoothing=0.1 && %VALIDATE_TEST%  # small
+yolo classify train data="%INPUT_DIR%" model=yolov8m-cls.pt epochs=50 patience=5 lr0=0.0001 optimizer='SGD' fliplr=0.5 label_smoothing=0.1 && %VALIDATE_TEST%  # medium
+
+# train with adjusted settings and augmentations
+yolo classify train data="%INPUT_DIR%" model=yolov8l-cls.pt epochs=100 patience=10 lr0=0.001 optimizer='SGD' fliplr=0.5 label_smoothing=0.1 augment=True && %VALIDATE_TEST%  # medium
+
+# trials
+yolo classify train data="%INPUT_DIR%" model=yolov8x-cls.pt epochs=100 patience=10 imgsz=224 save_json=True save_hybrid=True fliplr=0.5 label_smoothing=0.1 save_period=5 && %VALIDATE_TEST%
+yolo classify train data="%INPUT_DIR%" model=yolov8s-cls.pt epochs=100 patience=20 && %VALIDATE_TEST% 
+yolo classify train data="%INPUT_DIR%" model=yolov8m-cls.pt epochs=10 patience=3 batch=-1 && %VALIDATE_TEST%
+yolo classify train data="%INPUT_DIR%" model=yolov8n-cls.pt epochs=100 patience=5 --balance && %VALIDATE_TEST%
+
+# resume
+# use exact same command as the initial train command, but add 'resume' before 'model=' and point to the last.pt file.
+# It seems like it doesn't remember its patience parameters and starts counting again when resumed. 
+yolo classify train data="%INPUT_DIR%" resume model="runs\classify\train8\weights\last.pt" epochs=100 patience=10 imgsz=224 save_json=True save_hybrid=True fliplr=0.5 label_smoothing=0.1 save_period=5
+
+# validate
+yolo classify val data="%INPUT_DIR%" model="%OUTPUT_DIR%\runs\classify\train8\weights\last.pt" split=test
+yolo classify val data="%INPUT_DIR%" model="%OUTPUT_DIR%\runs\classify\train8\weights\best.pt" 
+
+
+arguments to experiment with:
+look up what they mean...
+# task=classify
+# mode=train
+model=yolov8l-cls.pt
+# data=C:\Peter\training-utils\current-train-set
+# epochs=30
+# patience=50
+batch=16
+# imgsz=224
+# save=True
+save_period=1
+# cache=False
+# device=None
+# workers=8
+# project=None
+# name=None
+# exist_ok=False
+# pretrained=True
+# optimizer=auto
+# verbose=True
+# seed=0
+deterministic=True
+single_cls=False
+# rect=False
+# cos_lr=False
+# close_mosaic=10
+# resume=False
+# amp=True
+# fraction=1.0
+# profile=False
+# freeze=None
+# overlap_mask=True
+# mask_ratio=4
+dropout=0.0
+# val=True
+# split=val
+save_json=False
+save_hybrid=False
+# conf=None
+# iou=0.7
+# max_det=300
+# half=False
+# dnn=False
+# plots=True
+
+
+
+# PREDICT AGRUMENTS
+# source=None
+# show=False
+# save_txt=False
+# save_conf=False
+# save_crop=False
+# show_labels=True
+# show_conf=True
+# vid_stride=1
+# stream_buffer=False
+# line_width=None
+# visualize=False
+augment=False
+# agnostic_nms=False
+classes=None
+retina_masks=False
+boxes=True
+format=torchscript
+keras=False
+optimize=False
+int8=False
+dynamic=False
+simplify=False
+opset=None
+workspace=4
+nms=False
+lr0=0.01
+lrf=0.01
+momentum=0.937
+weight_decay=0.0005
+warmup_epochs=3.0
+warmup_momentum=0.8
+warmup_bias_lr=0.1
+box=7.5
+cls=0.5
+dfl=1.5
+pose=12.0
+kobj=1.0
+label_smoothing=0.0
+nbs=64
+hsv_h=0.015
+hsv_s=0.7
+hsv_v=0.4
+degrees=0.0
+translate=0.1
+scale=0.5
+shear=0.0
+perspective=0.0
+flipud=0.0
+fliplr=0.5
+mosaic=1.0
+mixup=0.0
+copy_paste=0.0
+cfg=None
+tracker=botsort.yaml
+save_dir=runs\classify\train2
+
+
+
+
+
+
+
+# # USER INPUT
+# # set DIR_TO_BE_CLASSIFIED=C:\Peter\desert-lion-project\LILA-BC-based-lion-model\training-dataset\backgrounds
+# # set CLASSIFIER_DIR=C:\Peter\classifier
+# # set BASE_LOGDIR=C:\Peter\classifier\MegaDetector\classification\files-for-training
+# # set PYTHONPATH=%PYTHONPATH%;%CLASSIFIER_DIR%\MegaDetector;%CLASSIFIER_DIR%\yolov5
+
+
+# set ADDAXAI_FILES=C:\Users\smart\AddaxAI_files
+# set SCRIPTS_DIR=C:\Peter\scripts
+# set SRC_DIR=C:\Peter\desert-lion-project\LILA-BC-based-lion-model\training-dataset-detector\backgrounds
+# set DST_DIR=C:\Users\smart\Desktop\non-lion-crops
+# set PYTHONPATH=%PYTHONPATH%;%ADDAXAI_FILES%\cameratraps;%ADDAXAI_FILES%\yolov5
+
+# # DEPLOY MD
+# set ADDAXAI_FILES=C:\Users\smart\AddaxAI_files
+# set SRC_DIR=C:\Peter\desert-lion-project\LILA-BC-based-lion-model\training-dataset-detector\backgrounds
+# set PYTHONPATH=%PYTHONPATH%;%ADDAXAI_FILES%\cameratraps;%ADDAXAI_FILES%\yolov5
+# conda activate ecoassistcondaenv
+# python "%ADDAXAI_FILES%\cameratraps\detection\run_detector_batch.py" "%ADDAXAI_FILES%\pretrained_models\md_v5a.0.0.pt" "%SRC_DIR%" "%SRC_DIR%\image_recognition_file.json" --output_relative_filenames
+
+# # CROP MD DETECTIONS
+# set SCRIPT=/Users/peter/Documents/scripting/sorted-scripts/python/train-yolov8-classifier/1-crop-detections.py
+# set SRC_DIR=C:\Peter\desert-lion-project\LILA-BC-based-lion-model\training-dataset-detector\backgrounds
+# set DST_DIR=C:\Users\smart\Desktop\non-lion-crops
+# set PYTHONPATH=%PYTHONPATH%;%ADDAXAI_FILES%\cameratraps;%ADDAXAI_FILES%\yolov5
+# conda activate ecoassistcondaenv
+# python "%SCRIPT%" "%SRC_DIR%\image_recognition_file.json" "%DST_DIR%" --images-dir="%SRC_DIR%" --threshold=0.8 --square-crops --threads=50 --logdir="C:\Users\smart\Desktop\logs"
+
+# # create dataset
+# conda activate cameratraps-classifier 
+# # open py file and fill in values and paths
+# python "C:\Peter\scripts\2-create-trainingset.py"
+
+
+
+
+
+
+
+
+
+
+
+
+# # PREDICT
+# conda activate classifier-yolov8
+# yolo classify predict model="C:\Users\smart\runs\classify\train4\weights\best.pt" source="C:\Users\smart\Desktop\temp-results\PICT0715.JPG"
+# conda deactivate
+
+# # PREDICT
+# conda activate classifier-yolov8
+# python "C:\Users\smart\Desktop\yolov5\classify\predict-custom-cls-yolov8.py"
+# conda deactivate
+
+
+
+
+# # PREDICT
+
+# yolo classify predict model=path/to/best.pt source='https://ultralytics.com/images/bus.jpg'  # predict with custom model
+
+
+
+
+# # CLASSIFY
+# conda activate cameratraps-classifier
+# python "%CLASSIFIER_DIR%/MegaDetector/classification/run_classifier.py" "C:\Users\smart\Desktop\v0.1_efficientnet-b3_compiled.pt" "%CLASSIFIER_DIR%\crops" "%DIR_TO_BE_CLASSIFIED%\classifier_output.csv.gz" --detections-json "%DIR_TO_BE_CLASSIFIED%\image_recognition_file.json" --classifier-categories "%DIR_TO_BE_CLASSIFIED%\label_index.json" --image-size 300 --batch-size 64 --num-workers 8
+# conda deactivate
+
+
+# .... I have send Dan an email to ask him to send some example required files, since I seem to not be able to create them. (for internal use by AI for Earth only)
+
+# conda activate cameratraps-classifier
+
+
+# # 1. Select classification labels for training
+# # vreate dir C:\Peter\classifier\MegaDetector\classification\files-for-training
+# # create json inside "C:\Peter\classifier\MegaDetector\classification\files-for-training\label_spec.json"
+
+# # 2. Query MegaDB for labeled images
+# python "%CLASSIFIER_DIR%\MegaDetector\classification\json_validator.py" "$BASE_LOGDIR/label_spec.json" "C:\Peter\fetch-lila-bc-data\csv\lila_image_urls_and_labels.csv" --output-dir $BASE_LOGDIR --json-indent 1
+
+
+
+# conda activate cameratraps-classifier
+
+
+# # INITIAL SETUP
+# mkdir %CLASSIFIER_DIR%
+# cd %CLASSIFIER_DIR%
+# git clone https://github.com/agentmorris/MegaDetector.git
+# git clone https://github.com/ecologize/yolov5/
+# cd MegaDetector
+# mkdir crops
+# mkdir logs
+# conda env update -f envs/environment-classifier.yml --prune
+# conda activate cameratraps-classifier
+# python sandbox/torch_test.py
+# conda deactivate
+# conda env create --file envs/environment-detector.yml
+# conda deactivate
+
+
+
+
+
+
+
+
+
+# python -c "import torch; print(torch.cuda.is_available())"
+# python -c "import torch; print(torch.__version__)"
+
+
+
+
+
+
+
+# (cameratraps-classifier) C:\Users\smart>python "C:\Peter\classifier\MegaDetector\classification\crop_detections.py" --help
+# usage: crop_detections.py [-h] [-i IMAGES_DIR] [-c CONTAINER_URL] [-v DETECTOR_VERSION] [--save-full-images]
+#                           [--square-crops] [--check-crops-valid] [-t THRESHOLD] [-n THREADS] [--logdir LOGDIR]
+#                           detections_json cropped_images_dir
+
+# Crop detections from MegaDetector.
+
+# positional arguments:
+#   detections_json       path to detections JSON file
+#   cropped_images_dir    path to local directory for saving crops of bounding boxes
+
+# optional arguments:
+#   -h, --help            show this help message and exit
+#   -i IMAGES_DIR, --images-dir IMAGES_DIR
+#                         path to directory where full images are already available, or where images will be written if
+#                         --save-full-images is set (default: None)
+#   -c CONTAINER_URL, --container-url CONTAINER_URL
+#                         URL (including SAS token, if necessary) of Azure Blob Storage container to download images
+#                         from, if images are not all already locally available in <images_dir> (default: None)
+#   -v DETECTOR_VERSION, --detector-version DETECTOR_VERSION
+#                         detector version string, e.g., "4.1", used if detector version cannot be inferred from
+#                         detections JSON (default: None)
+#   --save-full-images    forces downloading of full images to --images-dir (default: False)
+#   --square-crops        crop bounding boxes as squares (default: False)
+#   --check-crops-valid   load each crop to ensure file is valid (i.e., not truncated) (default: False)
+#   -t THRESHOLD, --threshold THRESHOLD
+#                         confidence threshold above which to crop bounding boxes (default: 0.0)
+#   -n THREADS, --threads THREADS
+#                         number of threads to use for downloading and cropping images (default: 1)
+#   --logdir LOGDIR       path to directory to save log file (default: .)
+
+
+
+
+
+
+#   (cameratraps-classifier) C:\Peter\classifier\MegaDetector>python "%CLASSIFIER_DIR%\MegaDetector\classification\run_classifier.py" --help
+# usage: run_classifier.py [-h] [-d DETECTIONS_JSON] [-c CLASSIFIER_CATEGORIES] [--image-size IMAGE_SIZE]
+#                          [--batch-size BATCH_SIZE] [--device DEVICE] [--num-workers NUM_WORKERS]
+#                          model crops_dir output
+
+# Run classifier.
+
+# positional arguments:
+#   model                 path to TorchScript compiled model
+#   crops_dir             path to directory containing cropped images
+#   output                path to save CSV file with classifier results (can use .csv.gz extension for compression)
+
+# optional arguments:
+#   -h, --help            show this help message and exit
+#   -d DETECTIONS_JSON, --detections-json DETECTIONS_JSON
+#                         path to detections JSON file, used to filter paths within crops_dir (default: None)
+#   -c CLASSIFIER_CATEGORIES, --classifier-categories CLASSIFIER_CATEGORIES
+#                         path to JSON file for classifier categories. If not given, classes are numbered "0", "1", "2",
+#                         ... (default: None)
+#   --image-size IMAGE_SIZE
+#                         size of input image to model, usually 224px, but may be larger especially for EfficientNet
+#                         models (default: 224)
+#   --batch-size BATCH_SIZE
+#                         batch size for evaluating model (default: 1)
+#   --device DEVICE       preferred CUDA device (default: None)
+#   --num-workers NUM_WORKERS
+#                         # of workers for data loading (default: 8)
+
+
+
+
+
+
+
+
+
+
+# # ENV INFO:
+# cameratraps-classifier: van Dan in de MegaDetector repo: envs/classifier-environment.yaml
+# cameratraps-detector: van Dan in de MegaDetector repo: envs/detector-environment.yaml
+# classifier-yolov8: zelf gemaakt.
+#                     - pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu117
+#                     - pip install ultralytics
+
+#                     # deze ook gedaan?
+#                     - pip install numpy==1.24.2
+#                     - conda install cudnn=8.1
+#                     - conda install cudatoolkit=11.3
+
+
+
+
+
+
+
+
+

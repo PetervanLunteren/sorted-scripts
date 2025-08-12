@@ -1,0 +1,7 @@
+#################
+## copy all files in one dir to another dir
+#################
+
+set "src=I:\camera-trap-data\central-africa-img-for-Hugo"
+set "dst=G:\imgs"
+robocopy "%src%" "%dst%" /E /Z /MT:1 /FFT /NP

@@ -1,0 +1,30 @@
+# CHECK PATH - List the Contents of the Google Drive Remote (add --drive-shared-with-me if needed)
+rclone lsd "gdrive:Addax/Trained Bundles" --drive-shared-with-me
+rclone lsd "gdrive:Hawaii spp model"
+
+# DRY RUN - If you want to see what will be copied without actually doing it
+rclone copy -P --dry-run "gdrive:Addax/Trained Bundles" "C:\Users\smart\Downloads" --drive-shared-with-me
+rclone copy -P --dry-run "gdrive:Hawaii spp model" "C:\Users\smart\Downloads"
+
+# DOWNLOAD - it will recursively download all files
+rclone copy -P --tpslimit 10 --tpslimit-burst 10 --retries 5 --low-level-retries 10 "gdrive:Addax/Local Images 20250208" "C:\Users\smart\Downloads\Local Images 20250208" --drive-shared-with-me
+rclone copy -P "gdrive:Hawaii spp model" "C:\Users\smart\Downloads"
+
+# RESUME - by running the exact same command it will continue where it left off
+
+# CHECK - check if all the files are locally
+rclone check "gdrive:Addax/Trained Bundles" "C:\Users\smart\Downloads" --drive-shared-with-me
+rclone check "gdrive:Hawaii spp model" "C:\Users\smart\Downloads"
+
+# UPLOAD TO GOOGLE DRIVE
+rclone copy "C:\Users\smart\Desktop\<FILENAME>.zip" "gdrive:shared-with-people/to-be-annotated-full-dataset" --progress --transfers=1 --retries=10 --low-level-retries=20 --drive-chunk-size=64M
+
+
+
+# NOTES:
+
+# - you'll need to add the --drive-shared-with-me flag if I do not own the folder. Like:
+rclone copy --drive-shared-with-me --progress "gdrive:Addax/Verified Training Images" "C:\Users\smart\Downloads\20240711_grant_verified_imgs"
+
+# If you're seeing "Duplicate object found in source - ignoring" there are duplicates in the Google Drive folder. You can check which ones with the following command:
+rclone dedupe "gdrive:Hawaii spp model" 

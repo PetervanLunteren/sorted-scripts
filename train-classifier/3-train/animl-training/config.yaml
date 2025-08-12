@@ -1,0 +1,74 @@
+# parameters for training aniML models 
+# original repo: https://github.com/conservationtechlab/animl-py
+# forked repo:   https://github.com/PetervanLunteren/animl-py
+
+# STEP 1: CONFIGURE
+  # copy this config file to "C:\Peter\training-utils\scripts\config.yaml"
+
+# STEP OPTIONAL: SWEEP
+  # - it takes all the values defined in this config ("C:\Peter\training-utils\scripts\config.yaml"), but varies only the values defined in the sweep_config.yaml ("C:\Peter\training-utils\scripts\animl-py\src\animl\sweep_config.yaml")
+  # - generally you want to sweep about 30 to 50 runs on the 20% dataset, and then run a tighter sweep around the optimal values of 10 count on the 100% dataset. 
+  # - this is how to run a sweep:
+    # set PROJECT_CODE=2025-10-KWA
+    # conda activate ecoassistcondaenv-pytorch && cd C:\Peter\training-utils\scripts\animl-py\src\ && wandb sweep --project %PROJECT_CODE% animl\sweep_config.yaml
+    # run whatever the output says
+
+# STEP 2: TRAIN
+  # start training with the following command: 
+  # conda activate ecoassistcondaenv-pytorch && cd C:\Peter\training-utils\scripts\animl-py\src && set PYTHONWARNINGS=ignore::RuntimeWarning && python -m animl.train --config="C:\Peter\training-utils\scripts\config.yaml"
+
+# STEP 3: TEST
+  # point towards the script with the used-config.yml file inside the experiment folder
+  # conda activate ecoassistcondaenv-pytorch && cd C:\Peter\training-utils\scripts\animl-py\src && set PYTHONWARNINGS=ignore::RuntimeWarning && python -m animl.test --config="C:\Peter\projects\2024-28-OHI\outputs\human-sorted\with_test\full\run_1\used-config.yml"
+
+# STEP 4: CREATE REPORTS
+  # point towards the script with the used-config.yml file inside the experiment folder
+  # conda activate ecoassistcondaenv-pytorch && python "C:\Peter\training-utils\scripts\val-test-set.py" "animl" "C:\Peter\projects\2024-28-OHI\outputs\human-sorted\with_test\full\run_1\used-config.yml"
+
+# computational parameters
+seed: 420
+device: cuda:0
+num_workers: 8
+
+# set paths
+training_set:  "F:\\temp-train-sets\\2025-10-KWA\\without_test\\subset\\train_data.csv"
+validate_set:  "F:\\temp-train-sets\\2025-10-KWA\\without_test\\subset\\val_data.csv"
+test_set:      "F:\\temp-train-sets\\2025-10-KWA\\without_test\\subset\\test_data.csv"
+class_file:    "F:\\temp-train-sets\\2025-10-KWA\\without_test\\subset\\class_file.txt"
+
+# dst folder - will iterate and use subfolders with run_1, run_2, etc.
+experiment_folder: "C:\\Peter\\projects\\2025-10-KWA\\runs"                    
+
+# training hyperparameters
+architecture: "efficientnet_v2_m"          # options are "efficientnet_v2_s", "efficientnet_v2_m", "convnext_base", try efficientnet_v1? 
+num_tune_layers: 6                         # will revert to tuning all layers if omitted. Ollies trick was to tune only 6 layers. Prliminary tests did resulted in slightly more accurate models, but als 80% less training time!
+augment: True
+image_size: [480, 480]                     # [height, width] - pretrained size v2s = [384, 384], v2m = [480, 480]. Logical steps: 182, 224, 256, 320, 384, 448, 480, 512
+num_epochs: 100
+patience: 10
+use_scheduler: True                         # use ReduceLROnPlateau learning rate scheduler
+use_class_weights: True                     # use class weights for imbalanced datasets
+
+# learning rate
+learning_rate: 0.00428785
+# its aways a bit of trial and error to find the optimal learning rate
+# if you omit this, it will initiate a learning rate finder
+# but my epxerience is that the learning rate finder is not very effective
+# its probably best to run a WandB sweep for this
+# 0.0001 was found to be effective for HWI,
+# 0.0005 for OHI
+# 0.0030 for CAN
+# 0.0043 for AFR
+
+# weight decay
+weight_decay: 0.00018913  
+# best to test with a WandB sweep together with learning rate
+# 0.0002 was found to be effective for AFR
+
+# batch size
+batch_size: 11  
+# you want have it use as much of the GPU memory as possible without overflowing to the shared GPU memory (monitor in task manager)
+# Previously used values:
+#        architechture      image_size        batch_size
+#    efficientnet_v2_m             224                52
+#    efficientnet_v2_m             480                11
