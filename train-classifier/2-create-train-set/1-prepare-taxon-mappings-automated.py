@@ -24,12 +24,46 @@ except ImportError:
     sys.exit(1)
 
 # Configuration
-DEFAULT_PROMPT = """Can you return me the scientific names of the following animal in a python list using the same index? It contains mixed taxonomic levels, so just give me the most finegrained one, with the maximum level being species. No need for any subspecies or otherwise. For example, Bird will be aves, but cat will be felis domesticus."""
+DEFAULT_PROMPT = """I will give you a python list of animal class names. For each class name, return the most appropriate scientific name:
+
+- Only use species level if it's absolutely clear which specific species they mean
+- If multiple species are possible in that region, use genus or family level instead
+- For broad categories (like "bird", "micromammal"), use the appropriate higher taxonomic level
+
+Return your answer as a python list of scientific names in the exact same order as the input list."""
 
 # Project-specific prompt override - modify this for different projects
-PROJECT_SPECIFIC_CONTEXT = "these are all animals from the USA"  # e.g., "this model has animals from japan"
+SPECIFIC_GEOGRAPHIC_REGION = "Southwest USA"  # e.g., "Terrai region in Nepal"
 
-MODEL_CLASSES = ["bear", "cat", "dog", "bird", "raptor", "athropod", "reptile"]  # Example classes, replace with actual classes
+MODEL_CLASSES = [
+                "badger",
+                "beaver",
+                "bird",
+                "boar",
+                "bobcat",
+                "cat",
+                "corvid",
+                "cougar",
+                "cow",
+                "coyote",
+                "deer",
+                "dog",
+                "empty",
+                "fox",
+                "human",
+                "opossum",
+                "other",
+                "owl",
+                "rabbit",
+                "raccoon",
+                "raptor",
+                "reptile",
+                "rodent",
+                "skunk",
+                "squirrel",
+                "vehicle",
+                "weasel"
+            ]
 
 def get_api_key() -> str:
     """Get API key from environment variable"""
@@ -40,19 +74,25 @@ def get_api_key() -> str:
 
 def create_prompt(MODEL_CLASSES: List[str], project_context: str = "") -> str:
     """Create the prompt for Claude API"""
-    base_prompt = DEFAULT_PROMPT
-    if project_context:
-        base_prompt = base_prompt.replace(
-            "the animals are all arboreal Neotropical primates", 
-            f"the animals are all arboreal Neotropical primates, and additionally {project_context}"
-        )
     
-    classes_str = "\n".join([f"- {cls}" for cls in MODEL_CLASSES])
+    # Create context-specific questions for each class
+    class_questions = []
+    context_region = project_context if project_context else "this region"
     
-    full_prompt = f"""{base_prompt}
+    for class_name in MODEL_CLASSES:
+        question = f"If somebody from {context_region} says '{class_name}', which animal or group of animals are they talking about?"
+        class_questions.append(f"- {class_name}: {question}")
+    
+    classes_str = "\n".join(class_questions)
+    
+    full_prompt = f"""{DEFAULT_PROMPT}
 
-Here are the animal classes:
+Context: {project_context}
+
+For each class name, consider the regional context:
 {classes_str}
+
+Input list: {MODEL_CLASSES}
 
 Please return ONLY a Python list of scientific names, one for each class in the same order. Format it as a valid Python list that can be directly copied into code."""
     
@@ -146,6 +186,9 @@ def fetch_taxons_from_species_search(query=None, usageKey=None):
     
     # search GBIF API for species if usageKey is not provided
     if usageKey is None:
+        # If no query provided, use "1" as fallback
+        if query is None or query == "":
+            query = "1"
         species_formatted = query.replace(" ", "%20")
         search_url = f"https://api.gbif.org/v1/species/match?name={species_formatted}&kingdom=Animalia"
         try:
@@ -446,8 +489,10 @@ def wait_for_user_review(excel_file_path):
     print(f"\nOpen Excel file: {excel_file_path}")
     print("Review if the AI taxonomic information is right. If not:")
     print("- For non-GBIF classes (raptor, arthropod): fill GBIF_usageKey with '-1'")
-    print("- Unknown reptile GBIF key: 11592253")
     print("- Modify GBIF_query if needed - script will re-fetch data")
+    print("\nCommonly used problematic classes:")
+    print("- Unknown reptile: GBIF key 11592253")
+    print("- Caprid (goat/sheep): Class Mammalia, Order Artiodactyla, Family Bovidae, Caprinae")
     print("\nSAVE the file when done.")
     
     while True:
@@ -482,7 +527,7 @@ def main():
     try:
         # Step 1: Get scientific names from Claude
         print("STEP 1: Getting scientific names from Claude API...")
-        scientific_names = get_scientific_names_from_claude(MODEL_CLASSES, PROJECT_SPECIFIC_CONTEXT)
+        scientific_names = get_scientific_names_from_claude(MODEL_CLASSES, SPECIFIC_GEOGRAPHIC_REGION)
         
         print(f"\nSuccessfully received {len(scientific_names)} scientific names!")
         
@@ -505,6 +550,12 @@ def main():
         # Step 2: Fetch GBIF taxonomic information
         print("\nSTEP 2: Fetching GBIF taxonomic information...")
         df = fetch_gbif_info(df)
+        
+        # Sort by GBIF_usageKey (low to high)
+        print("\nSorting by GBIF_usageKey...")
+        df['GBIF_usageKey_numeric'] = pd.to_numeric(df['GBIF_usageKey'], errors='coerce')
+        df = df.sort_values('GBIF_usageKey_numeric', na_position='last')
+        df = df.drop('GBIF_usageKey_numeric', axis=1)  # Remove helper column
         
         # Export results to Excel
         output_path = "/Users/peter/Desktop/temp_label_map.xlsx"
@@ -540,10 +591,24 @@ def main():
         final_df = pd.read_excel(output_path, sheet_name='label_map')
         minus_one_entries = final_df[final_df['GBIF_usageKey'].astype(str) == '-1']
         
+        # Check for missing values in the final CSV
+        csv_df = pd.read_csv(csv_output_path)
+        level_cols = [col for col in csv_df.columns if col.startswith('level_')]
+        missing_data_rows = csv_df[csv_df[level_cols].isnull().any(axis=1)]
+        
         print(f"\nComplete workflow finished successfully!")
         print("="*80)
         print(f"Excel file: {output_path}")
         print(f"Final CSV:  {csv_output_path}")
+        
+        # Check for missing values first
+        if len(missing_data_rows) > 0:
+            print(f"\n🚨 CRITICAL: Found {len(missing_data_rows)} entries with missing taxonomic data in the CSV:")
+            for _, row in missing_data_rows.iterrows():
+                missing_cols = [col for col in level_cols if pd.isnull(row[col])]
+                print(f"   ❌ {row['model_class']}: missing {', '.join(missing_cols)}")
+            print(f"\n🔧 These MUST be filled manually in {csv_output_path}")
+            print("💡 Missing values will cause problems in the model pipeline!")
         
         if len(minus_one_entries) > 0:
             print(f"\n⚠️  IMPORTANT: Found {len(minus_one_entries)} entries with GBIF_usageKey = '-1':")
@@ -552,12 +617,23 @@ def main():
             print("\nYou need to manually adjust these rows in the taxon-mapping.csv file")
             print("to have proper taxonomic information instead of 'UNKNOWN TAXONOMY'.")
             print("\nAdd the most specific taxonomy possible, for example:")
-            print("┌─────────────┬──────────────┬──────────────┬──────────────┬──────────────┬──────────────┐")
-            print("│ model_class │ level_class  │ level_order  │ level_family │ level_genus  │ level_species│")
-            print("├─────────────┼──────────────┼──────────────┼──────────────┼──────────────┼──────────────┤")
-            print("│ raptor      │ class Aves   │ Raptor       │ Raptor       │ Raptor       │ Raptor       │")
-            print("│ arthropod   │ Arthropoda   │ Arthropoda   │ Arthropoda   │ Arthropoda   │ Arthropoda   │")
-            print("└─────────────┴──────────────┴──────────────┴──────────────┴──────────────┴──────────────┘")
+            print("┌───────────────┬──────────────────┬────────────────────┬─────────────────────┬──────────────────┬───────────────┐")
+            print("│ model_class   │ level_class      │ level_order        │ level_family        │ level_genus      │ level_species │")
+            print("├───────────────┼──────────────────┼────────────────────┼─────────────────────┼──────────────────┼───────────────┤")
+            print("│ raptor        │ class Aves       │ Raptor             │ Raptor              │ Raptor           │ Raptor        │")  
+            print("│ arthropod     │ Arthropoda       │ Arthropoda         │ Arthropoda          │ Arthropoda       │ Arthropoda    │")
+            print("│ bait          │ Bait             │ Bait               │ Bait                │ Bait             │ Bait          │") 
+            print("│ unknown_animal│ Unknown animal   │ Unknown animal     │ Unknown animal      │ Unknown animal   │ Unknown animal│")
+            print("│ caprid        │ class Mammalia   │ order Artiodactyla │ family Bovidae      │ Caprid           │ Caprid        │")
+            print("│ wallaby       │ class Mammalia   │ order Diprotodontia│ family Macropodidae │ Wallaby          │ Wallaby       │")
+            print("└───────────────┴──────────────────┴────────────────────┴─────────────────────┴──────────────────┴───────────────┘")
+            print("\nExplanation:")
+            print("- raptor: taxonomy is grouped at lower level (birds of prey)")
+            print("- arthropod: taxonomy is above class level (phylum)")  
+            print("- bait: not an animal")
+            print("- unknown_animal: unknown taxonomy")
+            print("- caprid: known higher taxonomy, group name at genus/species level")
+            print("- wallaby: known higher taxonomy, group name at genus/species level")
         
         print("\nThe taxon-mapping.csv is ready to be used in your model pipeline!")
         
